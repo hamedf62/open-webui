@@ -798,6 +798,15 @@
 						</button>
 					</UserMenu>
 				{/if}
+				<button
+					><div class=" self-center font-primary">
+						by: <a href="https://sau.ac.ir/" target="_blank">Science & Arts university, Yazd</a>
+					</div>
+					<div>
+						🇮🇷<a href="https://profile.acecr.ac.ir/hfallah/fa" target="_blank">Hamed Fallah Tafti</a
+						>
+					</div></button
+				>
 			</div>
 		</div>
 	</div>
