@@ -35,7 +35,7 @@ services:
       - MODEL_FILTER_LIST=meta-llama/llama-3.2-11b-vision-instruct:free
       - DEFAULT_MODELS=meta-llama/llama-3.2-11b-vision-instruct:free
       - DATABASE_URL=${DATABASE_URL}
-      - ENV=prod
+      # - ENV=prod
       # - DEFAULT_LOCALE=fa
       - RESET_CONFIG_ON_START=false
 
