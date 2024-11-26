@@ -103,7 +103,7 @@ if os.path.exists(f"{DATA_DIR}/config.json"):
 DEFAULT_CONFIG = {
     "version": 0,
     "ui": {
-        "default_locale": "",
+        # "default_locale": "",
         "prompt_suggestions": [
             {
                 "title": [
