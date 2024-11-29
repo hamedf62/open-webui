@@ -1,0 +1,104 @@
+services:
+  # ollama:
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   container_name: ollama
+  #   pull_policy: always
+  #   tty: true
+  #   restart: unless-stopped
+  #   image: ollama/ollama:${OLLAMA_DOCKER_TAG-latest}
+
+  # open-webui:
+  #   build:
+  #     context: .
+  #     args:
+  #       OLLAMA_BASE_URL: '/ollama'
+  #     dockerfile: Dockerfile
+  #   image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
+  #   container_name: open-webui
+  #   volumes:
+  #     - open-webui:/app/backend/data
+  #   depends_on:
+  #     # - ollama
+  #     - db
+  #   ports:
+  #     - ${OPEN_WEBUI_PORT-3000}:8080
+  #   environment:
+  #     - DEFAULT_LOCALE='fa'
+  #     # - 'OLLAMA_BASE_URL=http://ollama:11434'
+  #     # - 'WEBUI_SECRET_KEY='
+  #     - WEBUI_NAME=Science & Arts AI
+  #     - ENABLE_MODEL_FILTER=true
+  #     - ENABLE_OPENAI_API=true
+  #     - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL}
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - MODEL_FILTER_LIST=meta-llama/llama-3.2-11b-vision-instruct:free
+  #     - DEFAULT_MODELS=meta-llama/llama-3.2-11b-vision-instruct:free
+  #     - DATABASE_URL=${DATABASE_URL}
+  #     # - ENV=prod
+  #     # - DEFAULT_LOCALE=fa
+  #     - RESET_CONFIG_ON_START=false
+    # extra_hosts:
+    #   - host.docker.internal:host-gateway
+    # restart: unless-stopped
+    # networks:
+    #   - localnetwork
+      
+  db:
+    image: postgres
+    container_name: local_pgdb
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - local_pgdata:/var/lib/postgresql/data
+    networks:
+      - localnetwork
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin4_container
+    restart: unless-stopped
+    ports:
+      - "8888:80"
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json # Mount servers.json
+    networks:
+      - localnetwork
+
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: nginx_proxy
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - open-webui
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - /etc/nginx/certs:/etc/nginx/certs:ro # SSL certificates
+  #     - ./logs/nginx:/var/log/nginx # Logs for NGINX
+  #   networks:
+  #     - localnetwork
+
+volumes:
+  ollama: {}
+  open-webui: {}
+  local_pgdata:
+  pgadmin-data:
+  # nginx_proxy:
+
+
+networks:
+  localnetwork:

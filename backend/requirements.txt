@@ -14,6 +14,7 @@ requests==2.32.3
 aiohttp==3.10.8
 async-timeout
 aiocache
+aiofiles
 
 sqlalchemy==2.0.32
 alembic==1.13.2
@@ -98,3 +99,6 @@ googleapis-common-protos==1.63.2
 
 ## LDAP
 ldap3==2.9.1
+
+# # custom
+python-dotenv==1.0.1
