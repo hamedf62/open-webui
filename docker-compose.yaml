@@ -1,4 +1,8 @@
 services:
+
+
+
+
   # ollama:
   #   volumes:
   #     - ollama:/root/.ollama
@@ -15,41 +19,115 @@ services:
         OLLAMA_BASE_URL: '/ollama'
       dockerfile: Dockerfile
     image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
-    container_name: open-webui
+    container_name: open-webuia
     volumes:
       - open-webui:/app/backend/data
     depends_on:
-      # - ollama
       - db
-    ports:
-      - ${OPEN_WEBUI_PORT-3000}:8080
+      - keycloak
+    # ports:
+    #   - ${OPEN_WEBUI_PORT-3000}:8080
     environment:
-      - DEFAULT_LOCALE='fa'
-      # - 'OLLAMA_BASE_URL=http://ollama:11434'
-      # - 'WEBUI_SECRET_KEY='
-      - WEBUI_NAME=Science & Arts AI
-      - ENABLE_MODEL_FILTER=true
-      - ENABLE_OPENAI_API=true
-      - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MODEL_FILTER_LIST=meta-llama/llama-3.2-11b-vision-instruct:free
-      - DEFAULT_MODELS=meta-llama/llama-3.2-11b-vision-instruct:free
-      - DATABASE_URL=${DATABASE_URL}
-      - ENV=prod
-      # - DEFAULT_LOCALE=fa
-      - RESET_CONFIG_ON_START=false
+      ENV: prod
+      DEFAULT_LOCALE: 'fa'
+      WEBUI_NAME: Science & Arts AI
+      WEBUI_URL: "https://ai.sau.ac.ir/"
+      ENABLE_MODEL_FILTER: ${ENABLE_MODEL_FILTER}
+      ENABLE_OPENAI_API: ${ENABLE_OPENAI_API}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MODEL_FILTER_LIST: meta-llama/llama-3.2-11b-vision-instruct:free
+      DEFAULT_MODELS: meta-llama/llama-3.2-11b-vision-instruct:free
+      DATABASE_URL: ${DATABASE_URL}
+      RESET_CONFIG_ON_START: ${RESET_CONFIG_ON_START}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
 
-    extra_hosts:
-      - host.docker.internal:host-gateway
+      ENABLE_OAUTH_SIGNUP: ${ENABLE_OAUTH_SIGNUP}
+      ENABLE_LOGIN_FORM: ${ENABLE_LOGIN_FORM}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      OPENID_PROVIDER_URL: ${OPENID_PROVIDER_URL}
+      OAUTH_PROVIDER_NAME: ${OAUTH_PROVIDER_NAME}
+      OPENID_REDIRECT_URI: ${OPENID_REDIRECT_URI}
+      OAUTH_MERGE_ACCOUNTS_BY_EMAIL: true
+      WEBUI_AUTH: true
+      PORT: 8081
     restart: unless-stopped
     networks:
-      - localnetwork
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.open-webui.rule=Host(`ai.sau.ac.ir`)"
+      - "traefik.http.routers.open-webui.entrypoints=web-openwebui"
+      - "traefik.http.routers.open-webui.tls.certresolver=sauresolver"
+      - "traefik.http.services.open-webui.loadbalancer.server.port=8081"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.6
+    container_name: keycloak
+    restart: always
+    # ports:
+    #   # - "3622:3622"
+    #   # - "3623:3623"
+    #   - "8086:8080"
+    #   - "8444:8443"
+
+    volumes:
+      - keycloak-volume:/opt/keycloak/data
+      # - /conf/server.crt:/opt/keycloak/conf/server.crt
+      # - /conf/server.key:/opt/keycloak/conf/server.key
+      # - /etc/letsencrypt/live/ai.sau.ac.ir/fullchain.pem:/opt/keycloak/conf/fullchain.pem
+      # - /etc/letsencrypt/live/ai.sau.ac.ir/privkey.pem:/opt/keycloak/conf/privkey.pem
+    environment:
+      # KC_HOSTNAME_STRICT: "false"
+      # KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_PROXY_HEADERS: 'xforwarded'
+      # PROXY_ADDRESS_FORWARDING: 'true'
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: "ai.sau.ac.ir"
+      # KC_HOSTNAME_DEBUG: true
+      # KC_HEALTH_ENABLED: 'true'
+      KC_BOOTSTRAP_ADMIN_USERNAME: "admin"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "admin"
+      # KC_HTTPS_CERTIFICATE_FILE: "/opt/keycloak/conf/fullchain.pem"
+      # KC_HTTPS_CERTIFICATE_KEY_FILE: "/opt/keycloak/conf/privkey.pem"
+      KC_HTTP_PORT: "9575"
+      # KC_HTTPS_PORT: "3623"
+    command: start
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.keycloak.rule=Host(`ai.sau.ac.ir`)"
+      - "traefik.http.routers.keycloak.service=keycloak"
+      - "traefik.http.routers.keycloak.entrypoints=web-keycloak"
+      - "traefik.http.routers.keycloak.tls=true"
+      - "traefik.http.routers.keycloak.tls.certresolver=sauresolver"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=9575"
+      - "traefik.http.services.keycloak.loadbalancer.passhostheader=true"
+    networks:
+      # - keycloak
+      - traefik
+    # healthcheck:
+    #   test: 
+    #   - "CMD-SHELL"
+    #   - |
+    #     exec 3<>/dev/tcp/localhost/9000 &&
+    #     echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+    #     cat <&3 | tee /tmp/healthcheck.log | grep -q '200 OK'
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 3
+    #   start_period: 90s
+
+
+
   db:
     image: postgres
     container_name: local_pgdb
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -57,47 +135,87 @@ services:
     volumes:
       - local_pgdata:/var/lib/postgresql/data
     networks:
-      - localnetwork
+      - traefik
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin4_container
     restart: unless-stopped
-    ports:
-      - "8888:80"
+    # ports:
+    #   - "8888:80"
     depends_on:
       - db
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_LISTEN_PORT: 4200
     volumes:
       - pgadmin-data:/var/lib/pgadmin
       - ./servers.json:/pgadmin4/servers.json # Mount servers.json
     networks:
-      - localnetwork
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.pgadmin.rule=Host(`ai.sau.ac.ir`)"
+      - "traefik.http.routers.pgadmin.entrypoints=web-pgadmin"
+      - "traefik.http.routers.pgadmin.tls.certresolver=sauresolver"
+      - "traefik.http.services.pgadmin.loadbalancer.server.port=4200"
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx_proxy
-    restart: unless-stopped
-    depends_on:
-      - open-webui
+  traefik:
+    image: docker.io/traefik
+    command:
+      - --api.insecure=true
+      # - --api.dashboard=true
+      - --providers.docker=true
+      - "--providers.docker.exposedbydefault=false"
+      - --entrypoints.web-openwebui.address=:3001
+      - --entrypoints.web-keycloak.address=:3629
+      - --entrypoints.web-pgadmin.address=:8888
+      - "--entryPoints.web.address=:3600"
+      - --certificatesresolvers.sauresolver.acme.tlschallenge=true
+      - --certificatesresolvers.sauresolver.acme.email=hamedf@gmail.com
+      - --certificatesresolvers.sauresolver.acme.storage=/letsencrypt/acme.json
+      # - --accesslog=true
+      # - --accesslog.filepath=/var/log/traefik/access.log
+      # - --accesslog.format=json
     ports:
-      - "80:80"
-      - "443:443"
+      # - "127.0.0.1:8080:8080"
+      - "3600:3600"
+      - "443:3001"           # Open WebUI
+      - "3629:3629"           # Keycloak
+      - "8888:8888"           # pgAdmin
     volumes:
-      - /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/nginx/certs:/etc/nginx/certs:ro # SSL certificates
-      - ./logs/nginx:/var/log/nginx # Logs for NGINX
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - ./traefik/acme.json:/etc/traefik/acme.json
+      # - ./traefik_logs:/var/log/traefik
     networks:
-      - localnetwork
+      - traefik
+
+
+
+  # whoami:
+  #   image: "traefik/whoami"
+  #   container_name: "simple-service"
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.docker.network=traefik"
+  #     - "traefik.http.routers.whoami.rule=Host(`ai.sau.ac.ir`)"
+  #     - "traefik.http.routers.whoami.entrypoints=web"
+  #     - "traefik.http.routers.whoami.tls.certresolver=sauresolver"
+  #     - "traefik.http.services.whoami.loadbalancer.server.port=80"
+  #   networks:
+  #     - traefik
+
 
 volumes:
-  ollama: {}
   open-webui: {}
-  local_pgdata:
-  pgadmin-data:
-  nginx_proxy:
-
+  local_pgdata: {}
+  pgadmin-data: {}
+  keycloak-volume: {}
+  acme.json:
+  # traefik_logs: {}
 
 networks:
-  localnetwork:
+  traefik:
