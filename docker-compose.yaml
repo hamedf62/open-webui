@@ -22,9 +22,9 @@ services:
     container_name: open-webuia
     volumes:
       - open-webui:/app/backend/data
-    depends_on:
-      - db
-      - keycloak
+    # depends_on:
+      # - db
+      # - keycloak
     # ports:
     #   - ${OPEN_WEBUI_PORT-3000}:8080
     environment:
@@ -52,29 +52,38 @@ services:
       OAUTH_MERGE_ACCOUNTS_BY_EMAIL: true
       WEBUI_AUTH: true
       PORT: 8081
+      USER_AGENT: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     restart: unless-stopped
     networks:
-      - traefik
+      - traefik_network
+      # - db_network
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
+      - "traefik.docker.network=traefik_network"
       - "traefik.http.routers.open-webui.rule=Host(`ai.sau.ac.ir`)"
       - "traefik.http.routers.open-webui.entrypoints=web-openwebui"
       - "traefik.http.routers.open-webui.tls.certresolver=sauresolver"
       - "traefik.http.services.open-webui.loadbalancer.server.port=8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+      # keycloak:
+      #   condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.6
     container_name: keycloak
-    restart: always
-    # ports:
-    #   # - "3622:3622"
-    #   # - "3623:3623"
-    #   - "8086:8080"
-    #   - "8444:8443"
-
-    volumes:
-      - keycloak-volume:/opt/keycloak/data
+    restart: unless-stopped
+    # volumes:
+    #   - keycloak-volume:/opt/keycloak/data
       # - /conf/server.crt:/opt/keycloak/conf/server.crt
       # - /conf/server.key:/opt/keycloak/conf/server.key
       # - /etc/letsencrypt/live/ai.sau.ac.ir/fullchain.pem:/opt/keycloak/conf/fullchain.pem
@@ -94,10 +103,19 @@ services:
       # KC_HTTPS_CERTIFICATE_KEY_FILE: "/opt/keycloak/conf/privkey.pem"
       KC_HTTP_PORT: "9575"
       # KC_HTTPS_PORT: "3623"
+
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: ${POSTGRES_KEYCLOAK_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_DB_SCHEMA: public
+      KC_HEALTH_ENABLED: true
     command: start
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
+      - "traefik.docker.network=traefik_network"
       - "traefik.http.routers.keycloak.rule=Host(`ai.sau.ac.ir`)"
       - "traefik.http.routers.keycloak.service=keycloak"
       - "traefik.http.routers.keycloak.entrypoints=web-keycloak"
@@ -107,72 +125,122 @@ services:
       - "traefik.http.services.keycloak.loadbalancer.passhostheader=true"
     networks:
       # - keycloak
-      - traefik
-    # healthcheck:
-    #   test: 
-    #   - "CMD-SHELL"
-    #   - |
-    #     exec 3<>/dev/tcp/localhost/9000 &&
-    #     echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
-    #     cat <&3 | tee /tmp/healthcheck.log | grep -q '200 OK'
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 3
-    #   start_period: 90s
+      - traefik_network
+      # - db_network
+    
+    healthcheck:
+      test: 
+      - "CMD-SHELL"
+      - |
+        exec 3<>/dev/tcp/localhost/9000 &&
+        echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+        cat <&3 | tee /tmp/healthcheck.log | grep -q '200 OK'
+      interval: 2s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+      # pgadmin:
+      #   condition: service_healthy
+      #   restart: true
+      # open-webui:
+      #   condition: service_healthy
+      #   restart: true
 
 
 
-  db:
+
+  postgres:
     image: postgres
-    container_name: local_pgdb
-    restart: unless-stopped
-    # ports:
-    #   - "5432:5432"
+    container_name: postgres_multi_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_OPENWEBUI_DB},${POSTGRES_KEYCLOAK_DB}
     volumes:
-      - local_pgdata:/var/lib/postgresql/data
+      - ./init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    restart: unless-stopped
     networks:
-      - traefik
+      # - db_network
+      - traefik_network
+    healthcheck:
+      # test: [ "CMD", "pg_isready", "-q", "-d", "${POSTGRES_KEYCLOAK_DB}", "-U", "${POSTGRES_USER}" ]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      # test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 3s
+
 
   pgadmin:
     image: dpage/pgadmin4
     container_name: pgadmin4_container
     restart: unless-stopped
     # ports:
-    #   - "8888:80"
-    depends_on:
-      - db
+    #   - "4201:4200"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
       PGADMIN_LISTEN_PORT: 4200
+      PGADMIN_DISABLE_POSTFIX: true
     volumes:
-      - pgadmin-data:/var/lib/pgadmin
+      - pgadmin-data:/var/lib/pgadmin:delegated
+      # - ./pgadmin_init.json:/pgadmin4/servers.json
+
+      # - pgadmin-data:/var/lib/pgadmin
       - ./servers.json:/pgadmin4/servers.json # Mount servers.json
-    networks:
-      - traefik
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik"
+      - "traefik.docker.network=traefik_network"
       - "traefik.http.routers.pgadmin.rule=Host(`ai.sau.ac.ir`)"
       - "traefik.http.routers.pgadmin.entrypoints=web-pgadmin"
       - "traefik.http.routers.pgadmin.tls.certresolver=sauresolver"
       - "traefik.http.services.pgadmin.loadbalancer.server.port=4200"
+    networks:
+      - traefik_network
+      # - db_network
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
+    #     restart: true
+    #   keycloak:
+    #     condition: service_healthy
+    # depends_on:
+    #   open-webui:
+    #     condition: service_healthy
+    #     restart: true
+    # depends_on:
+    #   - postgres
+
+    healthcheck:
+      #     test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4200/misc/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 4
+      start_period: 100s
+
 
   traefik:
     image: docker.io/traefik
+    restart: unless-stopped
     command:
       - --api.insecure=true
-      # - --api.dashboard=true
+      - --api.dashboard=true
       - --providers.docker=true
       - "--providers.docker.exposedbydefault=false"
       - --entrypoints.web-openwebui.address=:3001
       - --entrypoints.web-keycloak.address=:3629
       - --entrypoints.web-pgadmin.address=:8888
-      - "--entryPoints.web.address=:3600"
+      - "--entryPoints.web.address=:80"
+      
       - --certificatesresolvers.sauresolver.acme.tlschallenge=true
       - --certificatesresolvers.sauresolver.acme.email=hamedf@gmail.com
       - --certificatesresolvers.sauresolver.acme.storage=/letsencrypt/acme.json
@@ -181,7 +249,7 @@ services:
       # - --accesslog.format=json
     ports:
       # - "127.0.0.1:8080:8080"
-      - "3600:3600"
+      - "2345:80"   #traefik dashboard
       - "443:3001"           # Open WebUI
       - "3629:3629"           # Keycloak
       - "8888:8888"           # pgAdmin
@@ -191,8 +259,16 @@ services:
       - ./traefik/acme.json:/etc/traefik/acme.json
       # - ./traefik_logs:/var/log/traefik
     networks:
-      - traefik
-
+      - traefik_network
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`ai.sau.ac.ir`)
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik.middlewares=myauth
+      - traefik.http.middlewares.myauth.basicauth.users=hamed:$apr1$F4friJ.0$g/44AHwyrXwuG0sgOvwYw0
+      - "traefik.docker.network=traefik_network"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.tls.certresolver=sauresolver"
 
 
   # whoami:
@@ -210,12 +286,18 @@ services:
 
 
 volumes:
+  pgadmin-data:
   open-webui: {}
-  local_pgdata: {}
-  pgadmin-data: {}
-  keycloak-volume: {}
+  # local_pgdata: {}
+  # pgadmin-data: {}
+  # keycloak-volume: {}
   acme.json:
-  # traefik_logs: {}
+  postgres_data:
+  # servers.json: {}
+  traefik_logs: {}
 
 networks:
-  traefik:
+  traefik_network:
+  #    driver: bridge
+  # db_network:
+  #    driver: bridge

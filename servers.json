@@ -3,7 +3,7 @@
         "1": {
             "Name": "Local PostgreSQL",
             "Group": "Servers",
-            "Host": "db",
+            "Host": "postgres",
             "Port": 5432,
             "Username": "${POSTGRES_USER}",
             "SSLMode": "prefer",
