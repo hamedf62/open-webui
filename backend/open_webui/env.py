@@ -107,6 +107,7 @@ WEBUI_URL = os.environ.get("WEBUI_URL", "http://localhost:3000")
 
 WEBUI_FAVICON_URL = "https://openwebui.com/favicon.png"
 
+WEBHOOK_TELEGRAM_CHAT_ID= os.environ.get("WEBHOOK_TELEGRAM_CHAT_ID", "")
 
 ####################################
 # ENV (dev,test,prod)

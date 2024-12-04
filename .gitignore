@@ -310,3 +310,4 @@ cypress/screenshots
 
 # custom sau
 postgres_data
+.sau

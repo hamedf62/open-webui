@@ -3,7 +3,7 @@ import logging
 
 import requests
 from open_webui.config import WEBUI_FAVICON_URL, WEBUI_NAME
-from open_webui.env import SRC_LOG_LEVELS, VERSION
+from open_webui.env import SRC_LOG_LEVELS, VERSION, WEBHOOK_TELEGRAM_CHAT_ID
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["WEBHOOK"])
@@ -41,6 +41,13 @@ def post_webhook(url: str, message: str, event_data: dict) -> bool:
                     }
                 ],
             }
+        # Telegram Bot
+        elif "https://api.telegram.org/bot" in url:
+            # payload["content"] = message
+            payload = {
+                    'chat_id': WEBHOOK_TELEGRAM_CHAT_ID,
+                    'text': message
+                }
         # Default Payload
         else:
             payload = {**event_data}
