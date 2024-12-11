@@ -4,6 +4,7 @@ services:
     volumes:
       - .sau/ollama:/root/.ollama
     container_name: ollama
+    # name: ollama
     pull_policy: always
     tty: true
     restart: unless-stopped
@@ -12,6 +13,8 @@ services:
     #   - 11434:11434
     networks:
       - traefik_network
+      - ollama
+    # network_mode: "host"
 
   open-webui:
     build:
@@ -206,20 +209,6 @@ services:
       - "traefik.http.services.pgadmin.loadbalancer.server.port=4200"
     networks:
       - traefik_network
-      # - db_network
-      # depends_on:
-      #   postgres:
-      #     condition: service_healthy
-      #     restart: true
-      #   keycloak:
-      #     condition: service_healthy
-      # depends_on:
-      #   open-webui:
-      #     condition: service_healthy
-      #     restart: true
-      # depends_on:
-      #   - postgres
-
       # healthcheck:
       #   #     test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       #   test: ["CMD", "curl", "-f", "http://localhost:4200/misc/ping"]
@@ -298,6 +287,6 @@ volumes:
 
 networks:
   traefik_network:
-    #    driver: bridge
-    # db_network:
-    #    driver: bridge
+  ollama:
+    external:
+      name: ollama
